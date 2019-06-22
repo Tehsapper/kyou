@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <windows.h>
-
 #include "file.h"
 #include "ast.h"
 #include "interpret.h"
@@ -11,8 +9,6 @@ int main(int argc, char* argv[])
 {
 	unsigned char* data;
 	size_t data_size;
-
-	SetConsoleOutputCP(CP_UTF8);
 
 	if (argc < 2) {
 		fprintf(stderr, "usage: kyou [file]\n");

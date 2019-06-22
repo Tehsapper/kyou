@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 static int add_token(tokens* toks, token t)
 {
@@ -25,38 +26,36 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 	uint32_t col = 1;
 
 	if (utf8_has_bom(data)) {
+		fprintf(stderr, "had bom\n");
 		data += 3;
 	}
 
 	for (const char* p = data; p < data + data_size;) {
-		if (!IS_UTF8(*p)) {
-			if (isspace(*p)) {
-				if (*p == '\n') {
-					++line;
-					col = 1;
-				} else
-					++col;
-				++p;
-				continue;
+		if (isspace(*p)) {
+			if (*p == '\n') {
+				++line;
+				col = 1;
 			} else {
-				fprintf(stderr, "unknown identifier at line %u, %u: %c\n", line, col, *p);
-				return TOKENIZE_ERROR;
+				++col;
 			}
+			++p;
+			continue;
 		} else {
 
-#define strlit_eq(who, str) (strncmp((who), (str), sizeof(str)) == 0)
-#define IS_NUMBER(p) (strlit_eq(p, KANJI_ONE) || strlit_eq(p, KANJI_TWO) || strlit_eq(p, KANJI_THREE) || strlit_eq(p, KANJI_FOUR) || strlit_eq(p, KANJI_FIVE) || strlit_eq(p, KANJI_SIX) || strlit_eq(p, KANJI_SEVEN) || strlit_eq(p, KANJI_EIGHT) || strlit_eq(p, KANJI_NINE) || strlit_eq(p, KANJI_TEN))
-#define CHECK_KANJI(_kanji, _token) if (strncmp(p, (_kanji), sizeof(_kanji)) == 0) {\
+#define strlit_eq(who, str) (strncmp((who), (str), utf8_size(*(str))) == 0)
+#define IS_NUMBER(p) (strlit_eq(p, KANJI_ZERO) || strlit_eq(p, KANJI_ONE) || strlit_eq(p, KANJI_TWO) || strlit_eq(p, KANJI_THREE) || strlit_eq(p, KANJI_FOUR) || strlit_eq(p, KANJI_FIVE) || strlit_eq(p, KANJI_SIX) || strlit_eq(p, KANJI_SEVEN) || strlit_eq(p, KANJI_EIGHT) || strlit_eq(p, KANJI_NINE) || strlit_eq(p, KANJI_TEN))
+#define CHECK_KANJI(_kanji, _token) { fprintf(stderr, "%1x %1x %1x %d = %1x %1x %1x %d\n", p[0], p[1], p[2], utf8_size(*p), _kanji[0], _kanji[1], _kanji[2], utf8_size(*_kanji));\
+			int kanji_cdp = utf8_size(*(_kanji));\
+			if (strlit_eq(p, _kanji)) {\
 				add_token(toks, (token) { .type = (_token), .line = line, .col = col });\
-				p += sizeof(_kanji);\
+				p += kanji_cdp;\
 				++col;\
 				continue;\
-			}
+			}}
 			CHECK_KANJI(KANJI_SUN, TOKEN_SUN);
 			CHECK_KANJI(KANJI_MOON, TOKEN_MOON);
 			CHECK_KANJI(KANJI_STARS, TOKEN_STARS);
 
-			// have to check this one first, because the next one will also pass
 			CHECK_KANJI(KANJI_STORAGE_BASE, TOKEN_STORAGE_BASE);
 			CHECK_KANJI(KANJI_STORAGE, TOKEN_STORAGE);
 
@@ -73,6 +72,16 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 			
 			CHECK_KANJI(KANJI_MOVE, TOKEN_MOVE);
 			CHECK_KANJI(KANJI_ADD, TOKEN_ADD);
+			CHECK_KANJI(KANJI_SUBSTRACT, TOKEN_SUB);
+			CHECK_KANJI(KANJI_MULTIPLY, TOKEN_MUL);
+			CHECK_KANJI(KANJI_DIVIDE, TOKEN_DIV);
+			CHECK_KANJI(KANJI_MODULO, TOKEN_MOD);
+
+			CHECK_KANJI(KANJI_LABEL, TOKEN_LABEL);
+			CHECK_KANJI(KANJI_BRANCH, TOKEN_BRANCH);
+			CHECK_KANJI(KANJI_EQUALS, TOKEN_EQUALS);
+			CHECK_KANJI(KANJI_GREATER, TOKEN_GREATER);
+			CHECK_KANJI(KANJI_LESS, TOKEN_LESS);
 
 			if (IS_NUMBER(p)) {
 				int64_t result = 0;
@@ -93,8 +102,8 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 					}\
 					expr;\
 					lvl = (l);\
-					d += sizeof(kanji);\
-					fprintf(stderr, "added %zu to d\n", sizeof(kanji));\
+					d += utf8_size(*kanji);\
+					fprintf(stderr, "added %zu to d\n", utf8_size(*kanji));\
 					++col;\
 					continue;\
 				}
@@ -114,15 +123,48 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 					CHECK_KANJI_NUMBER(KANJI_THOUSAND, 4, curr = 1000 * (curr ? curr : 1));
 					CHECK_KANJI_NUMBER(KANJI_TEN_THOUSAND, 5, curr = 10000 * (curr ? curr : 1));
 				}
-#undef CHECK_KANJI_NUMBER
 				result += curr;
 				add_token(toks, (token){ .type = TOKEN_NUMBER, .as_int64 = result, .line = line, .col = col});
 				p = d;
 				continue;
 			}
 
-#undef CHECK_KANJI
-			fprintf(stderr, "unknown utf8 identifier at line %u, %u\n", line, col);
+			if (isalpha(*p)) {
+				const char* d = p;
+				while (isalnum(*d)) ++d;
+				
+				char* str = malloc(d - p + 1);
+				str[d - p] = 0;
+				strncpy(str, p, d - p);
+
+				add_token(toks, (token) { .type = TOKEN_IDENTIFIER, .as_cstr = str, .line = line, .col = col});
+				p = d;
+				col += d - p;
+				continue;
+			}
+
+			if (strlit_eq(p, KANJI_OPEN_QUOTE)) {
+				const char* d = p + utf8_size(*KANJI_OPEN_QUOTE);
+				while (isalnum(*d) || isspace(*d)) {	
+					if (*d == '\n') { ++line; col = 1; } else ++col;
+					fprintf(stderr, "added %c to str\n", *d);
+					++d;
+				}
+				if (!strlit_eq(d, KANJI_CLOSE_QUOTE)) {
+					fprintf(stderr, "did not close string literal properly at line %u, %u\n", line, col);
+					return TOKENIZE_ERROR;
+				} else fprintf(stderr, "closed string\n");
+
+				char* str = malloc(d - p - utf8_size(*KANJI_OPEN_QUOTE));
+				str[d - p - utf8_size(*KANJI_OPEN_QUOTE)] = 0;
+				strncpy(str, p + utf8_size(*KANJI_OPEN_QUOTE), d - p - utf8_size(*KANJI_OPEN_QUOTE));
+
+				add_token(toks, (token) { .type = TOKEN_STRING, .as_cstr = str, .line = line, .col = col});
+				fprintf(stderr, "resulted in %s\n", str);
+				p = d + utf8_size(*KANJI_CLOSE_QUOTE); // d should point to CLOSE_QUOTE
+				continue;
+			}
+			fprintf(stderr, "unknown symbol at line %u, %u\n", line, col);
 			return TOKENIZE_ERROR;
 		}
 	}

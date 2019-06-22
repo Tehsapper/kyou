@@ -1,0 +1,24 @@
+一動火
+札loop
+	火動木
+	木余三
+	別札div5木大霊
+	火動木
+	木余五
+	別札buzz木大霊
+	「fizzbuzz」動日
+	別札continue
+札buzz
+	「buzz」動日
+	別札continue
+札div5
+	火動木
+	木余五
+	別札num木大霊
+	「fizz」動日
+	別札continue
+札num
+	火動日
+札continue
+	火足一
+	別札loop火小十六

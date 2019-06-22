@@ -20,8 +20,8 @@ file_io_result_t read_file(const char* filename, unsigned char** buffer, size_t*
 		return FILE_IO_NOT_FOUND;
 
 	*size = file_length(file);
-	*buffer = malloc(*size);
-
+	*buffer = malloc(*size + 1);
+	(*buffer)[*size] = 0;
 	fread(*buffer, 1, *size, file);
 
 	if (ferror(file)) {
