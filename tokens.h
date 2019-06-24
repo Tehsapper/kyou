@@ -22,6 +22,10 @@
 #define KANJI_WINTER       u8"冬"
 
 #define KANJI_MOVE         u8"動"
+#define KANJI_PUSH         u8"押"
+#define KANJI_CALL         u8"呼"
+#define KANJI_RETURN       u8"帰"
+#define KANJI_POP          u8"弾"
 
 #define KANJI_ADD          u8"足"
 #define KANJI_SUBSTRACT    u8"引"
@@ -78,6 +82,11 @@ typedef enum {
 
 	// operations
 	TOKEN_MOVE,
+	TOKEN_PUSH,
+	TOKEN_CALL,
+	TOKEN_RETURN,
+	TOKEN_POP,
+
 	TOKEN_ADD,
 	TOKEN_SUB,
 	TOKEN_MUL,

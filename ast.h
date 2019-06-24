@@ -3,8 +3,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef enum { REG_FIRE, REG_WATER, REG_TREE, REG_METAL, REG_EARTH } kyou_register_t;
-typedef enum { MOVE_STATEMENT, OPERATOR_STATEMENT, LABEL, BRANCH_STATEMENT, TEMP_STR_PRINT } AST_node_type;
+typedef enum { REG_FIRE, REG_WATER, REG_TREE, REG_METAL, REG_EARTH, REG_STORAGE, REG_STORAGE_BASE } kyou_register_t;
+typedef enum {
+	MOVE_STATEMENT,
+	OPERATOR_STATEMENT,
+	LABEL,
+	BRANCH_STATEMENT,
+	PUSH_STATEMENT,
+	POP_STATEMENT,
+	CALL_STATEMENT,
+	RETURN_STATEMENT,
+	TEMP_STR_PRINT
+} AST_node_type;
 
 typedef struct {
 	enum { SOURCE_REGISTER, SOURCE_IMMEDIATE, SOURCE_MEM, SOURCE_FD } type;
@@ -63,6 +73,15 @@ typedef struct
 			AST_address branch_addr;
 			AST_source branch_a;
 			AST_source branch_b;
+		};
+		struct {
+			AST_source push_from;
+		};
+		struct {
+			AST_destination pop_to;
+		};
+		struct {
+			AST_address call_to;
 		};
 	};
 }

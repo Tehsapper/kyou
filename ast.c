@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define IS_REGISTER(t) ((t) == TOKEN_FIRE || (t) == TOKEN_WATER || (t) == TOKEN_TREE || (t) == TOKEN_METAL || (t) == TOKEN_EARTH)
+#define IS_REGISTER(t) ((t) == TOKEN_FIRE || (t) == TOKEN_WATER || (t) == TOKEN_TREE || (t) == TOKEN_METAL || (t) == TOKEN_EARTH || (t) == TOKEN_STORAGE || (t) == TOKEN_STORAGE_BASE)
 #define IS_NUMBER(t) ((t) == TOKEN_NUMBER)
 
 #define IS_OUTPUT(t) ((t) == TOKEN_SUN || (t) == TOKEN_STARS)
@@ -44,6 +44,11 @@ const char* token_str[] = {
 
 	// operations
 	"TOKEN_MOVE",
+	"TOKEN_PUSH",
+	"TOKEN_CALL",
+	"TOKEN_RETURN",
+	"TOKEN_POP",
+
 	"TOKEN_ADD",
 	"TOKEN_SUB",
 	"TOKEN_MUL",
@@ -80,7 +85,7 @@ if ( ! (first_predicate) ) {\
 } else if (! (token_predicate) ) {\
 	return 2;\
 }
-#define MAYBE(new_token, predicate) token new_token = NEXT_TOKEN; if (! (predicate) ) { fprintf(stderr, "predicate " #predicate " did not work for %s\n", token_str[new_token.type]); ROLLBACK_TOKEN; }
+#define MAYBE(new_token, predicate) token new_token = NEXT_TOKEN; if (! (predicate) ) { ROLLBACK_TOKEN; }
 #define OPTIONAL(new_token, predicate) token new_token = NEXT_TOKEN; if (! (predicate)) { --st; new_token.type = TOKEN_NONE; }
 #define ACCEPT do { t = st; return 1; } while (0)
 
@@ -279,6 +284,54 @@ int branch_rule(AST* ast)
 	}
 }
 
+int push_rule(AST* ast)
+{
+	MAYBE(push_tok, push_tok.type == TOKEN_PUSH)
+	EXPECTED(value_tok, IS_SOURCE(value_tok.type))
+
+	AST_node node;
+	node.type = PUSH_STATEMENT;
+	if (!source_from_token(&node.push_from, value_tok))
+		return 2;
+	add_ast_node(ast, node);
+	ACCEPT;
+}
+
+int pop_rule(AST* ast)
+{
+	MAYBE(pop_tok, pop_tok.type == TOKEN_POP)
+	EXPECTED(to_tok, IS_DESTINATION(to_tok.type))
+
+	AST_node node;
+	node.type = POP_STATEMENT;
+	if (!destination_from_token(&node.pop_to, to_tok))
+		return 2;
+	add_ast_node(ast, node);
+	ACCEPT;
+}
+
+int call_rule(AST* ast)
+{
+	MAYBE(call_tok, call_tok.type == TOKEN_CALL)
+	EXPECTED(addr_tok, IS_ADDRESS(addr_tok.type))
+	EXPECTED_IF(id_tok, addr_tok.type == TOKEN_LABEL, id_tok.type == TOKEN_IDENTIFIER)
+
+	AST_node node;
+	node.type = CALL_STATEMENT;
+	if (!address_from_token(&node.call_to, addr_tok, id_tok))
+		return 2;
+	add_ast_node(ast, node);
+	ACCEPT;
+}
+
+int return_rule(AST* ast)
+{
+	MAYBE(return_tok, return_tok.type == TOKEN_RETURN)
+
+	add_ast_node(ast, (AST_node) { .type = RETURN_STATEMENT });
+	ACCEPT;
+}
+
 int temp_str_print(AST* ast)
 {
 	MAYBE(str_tok, str_tok.type == TOKEN_STRING)
@@ -326,6 +379,10 @@ ast_result_t build_ast(AST* ast, unsigned char* data, size_t data_size)
 		CHECK_RULE(move_rule)
 		CHECK_RULE(label_rule)
 		CHECK_RULE(branch_rule)
+		CHECK_RULE(push_rule)
+		CHECK_RULE(pop_rule)
+		CHECK_RULE(call_rule)
+		CHECK_RULE(return_rule)
 		CHECK_RULE(temp_str_print)
 
 error:

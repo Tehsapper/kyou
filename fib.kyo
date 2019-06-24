@@ -1,0 +1,25 @@
+	別札start
+札fib
+	# if water is more than 1, we do recursion
+		別札fibrec水大一
+	# otherwise we return 1 in tree
+		一動木
+		帰
+	札fibrec
+		霊動木
+		押水
+		水引二
+		呼札fib
+		弾水
+
+		押木
+		水引一
+		呼札fib
+		弾土
+		木足土
+		帰
+
+札start
+	五動水
+	呼札fib
+	木動日

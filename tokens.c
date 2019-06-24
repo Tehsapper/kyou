@@ -31,6 +31,14 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 	}
 
 	for (const char* p = data; p < data + data_size;) {
+		if (*p == '#') {
+			while (*p != '\n' && *p++ != '\0');
+			++p;
+			++line;
+			col = 1;
+			continue;
+		}
+
 		if (isspace(*p)) {
 			if (*p == '\n') {
 				++line;
@@ -44,14 +52,12 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 
 #define strlit_eq(who, str) (strncmp((who), (str), utf8_size(*(str))) == 0)
 #define IS_NUMBER(p) (strlit_eq(p, KANJI_ZERO) || strlit_eq(p, KANJI_ONE) || strlit_eq(p, KANJI_TWO) || strlit_eq(p, KANJI_THREE) || strlit_eq(p, KANJI_FOUR) || strlit_eq(p, KANJI_FIVE) || strlit_eq(p, KANJI_SIX) || strlit_eq(p, KANJI_SEVEN) || strlit_eq(p, KANJI_EIGHT) || strlit_eq(p, KANJI_NINE) || strlit_eq(p, KANJI_TEN))
-#define CHECK_KANJI(_kanji, _token) { fprintf(stderr, "%1x %1x %1x %d = %1x %1x %1x %d\n", p[0], p[1], p[2], utf8_size(*p), _kanji[0], _kanji[1], _kanji[2], utf8_size(*_kanji));\
-			int kanji_cdp = utf8_size(*(_kanji));\
-			if (strlit_eq(p, _kanji)) {\
+#define CHECK_KANJI(_kanji, _token)	if (strlit_eq(p, _kanji)) {\
 				add_token(toks, (token) { .type = (_token), .line = line, .col = col });\
-				p += kanji_cdp;\
+				p += utf8_size(*(_kanji));\
 				++col;\
 				continue;\
-			}}
+			}
 			CHECK_KANJI(KANJI_SUN, TOKEN_SUN);
 			CHECK_KANJI(KANJI_MOON, TOKEN_MOON);
 			CHECK_KANJI(KANJI_STARS, TOKEN_STARS);
@@ -71,6 +77,11 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 			CHECK_KANJI(KANJI_WINTER, TOKEN_WINTER);
 			
 			CHECK_KANJI(KANJI_MOVE, TOKEN_MOVE);
+			CHECK_KANJI(KANJI_PUSH, TOKEN_PUSH);
+			CHECK_KANJI(KANJI_POP, TOKEN_POP);
+			CHECK_KANJI(KANJI_CALL, TOKEN_CALL);
+			CHECK_KANJI(KANJI_RETURN, TOKEN_RETURN);
+
 			CHECK_KANJI(KANJI_ADD, TOKEN_ADD);
 			CHECK_KANJI(KANJI_SUBSTRACT, TOKEN_SUB);
 			CHECK_KANJI(KANJI_MULTIPLY, TOKEN_MUL);
@@ -91,7 +102,6 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 				const char* d = p;
 				while (IS_NUMBER(d)) {
 #define CHECK_KANJI_NUMBER(kanji, l, expr) if (strlit_eq(d, (kanji))) {\
-					fputs(#kanji, stderr);\
 					if ((l) == lvl) {\
 						fprintf(stderr, "malformed number at %u, %u (l %d lvl %d)\n", line, col, (l), lvl);\
 						return TOKENIZE_ERROR;\
@@ -103,7 +113,6 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 					expr;\
 					lvl = (l);\
 					d += utf8_size(*kanji);\
-					fprintf(stderr, "added %zu to d\n", utf8_size(*kanji));\
 					++col;\
 					continue;\
 				}
@@ -145,7 +154,7 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 
 			if (strlit_eq(p, KANJI_OPEN_QUOTE)) {
 				const char* d = p + utf8_size(*KANJI_OPEN_QUOTE);
-				while (isalnum(*d) || isspace(*d)) {	
+				while (isascii(*d)) {//(isalnum(*d) || isspace(*d)) {	
 					if (*d == '\n') { ++line; col = 1; } else ++col;
 					fprintf(stderr, "added %c to str\n", *d);
 					++d;
