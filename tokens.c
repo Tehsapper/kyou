@@ -75,6 +75,8 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 			CHECK_KANJI(KANJI_SUMMER, TOKEN_SUMMER);
 			CHECK_KANJI(KANJI_AUTUMN, TOKEN_AUTUMN);
 			CHECK_KANJI(KANJI_WINTER, TOKEN_WINTER);
+			CHECK_KANJI(KANJI_STRING, TOKEN_STRING_TYPE);
+			CHECK_KANJI(KANJI_CHAR, TOKEN_CHAR);
 			
 			CHECK_KANJI(KANJI_MOVE, TOKEN_MOVE);
 			CHECK_KANJI(KANJI_PUSH, TOKEN_PUSH);
@@ -87,9 +89,13 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 			CHECK_KANJI(KANJI_MULTIPLY, TOKEN_MUL);
 			CHECK_KANJI(KANJI_DIVIDE, TOKEN_DIV);
 			CHECK_KANJI(KANJI_MODULO, TOKEN_MOD);
+			CHECK_KANJI(KANJI_OR, TOKEN_OR);
+			CHECK_KANJI(KANJI_AND, TOKEN_AND);
+			CHECK_KANJI(KANJI_XOR, TOKEN_XOR);
 
 			CHECK_KANJI(KANJI_LABEL, TOKEN_LABEL);
 			CHECK_KANJI(KANJI_BRANCH, TOKEN_BRANCH);
+			CHECK_KANJI(KANJI_ALWAYS, TOKEN_ALWAYS);
 			CHECK_KANJI(KANJI_EQUALS, TOKEN_EQUALS);
 			CHECK_KANJI(KANJI_GREATER, TOKEN_GREATER);
 			CHECK_KANJI(KANJI_LESS, TOKEN_LESS);
@@ -156,20 +162,20 @@ tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 				const char* d = p + utf8_size(*KANJI_OPEN_QUOTE);
 				while (isascii(*d)) {//(isalnum(*d) || isspace(*d)) {	
 					if (*d == '\n') { ++line; col = 1; } else ++col;
-					fprintf(stderr, "added %c to str\n", *d);
+					//fprintf(stderr, "added %c to str\n", *d);
 					++d;
 				}
 				if (!strlit_eq(d, KANJI_CLOSE_QUOTE)) {
 					fprintf(stderr, "did not close string literal properly at line %u, %u\n", line, col);
 					return TOKENIZE_ERROR;
-				} else fprintf(stderr, "closed string\n");
+				}// else fprintf(stderr, "closed string\n");
 
 				char* str = malloc(d - p - utf8_size(*KANJI_OPEN_QUOTE));
 				str[d - p - utf8_size(*KANJI_OPEN_QUOTE)] = 0;
 				strncpy(str, p + utf8_size(*KANJI_OPEN_QUOTE), d - p - utf8_size(*KANJI_OPEN_QUOTE));
 
 				add_token(toks, (token) { .type = TOKEN_STRING, .as_cstr = str, .line = line, .col = col});
-				fprintf(stderr, "resulted in %s\n", str);
+				//fprintf(stderr, "resulted in %s\n", str);
 				p = d + utf8_size(*KANJI_CLOSE_QUOTE); // d should point to CLOSE_QUOTE
 				continue;
 			}

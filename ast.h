@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef enum { POWER_SPRING, POWER_SUMMER, POWER_AUTUMN, POWER_WINTER, POWER_STRING, POWER_CHAR } kyou_power_t;
 typedef enum { REG_FIRE, REG_WATER, REG_TREE, REG_METAL, REG_EARTH, REG_STORAGE, REG_STORAGE_BASE } kyou_register_t;
 typedef enum {
 	MOVE_STATEMENT,
@@ -13,41 +14,57 @@ typedef enum {
 	POP_STATEMENT,
 	CALL_STATEMENT,
 	RETURN_STATEMENT,
+	STORE,
 	TEMP_STR_PRINT
 } AST_node_type;
 
 typedef struct {
-	enum { SOURCE_REGISTER, SOURCE_IMMEDIATE, SOURCE_MEM, SOURCE_FD } type;
+	kyou_power_t power;
+	union {
+		int8_t as_int8;
+		int16_t as_int16;
+		int32_t as_int32;
+		int64_t as_int64;
+		const char* as_string;
+		char as_char;
+	};
+}
+AST_value;
+
+typedef struct {
+	enum { ADDRESS_LABEL, ADDRESS_IMMEDIATE, ADDRESS_REGISTER } type;
+	union {
+		const char* as_label;
+		size_t as_immediate;
+		kyou_register_t as_reg;
+	};
+}
+AST_address;
+
+typedef struct {
+	enum { SOURCE_REGISTER, SOURCE_IMMEDIATE, SOURCE_MEM, SOURCE_FD, SOURCE_LABEL } type;
+	kyou_power_t power;
 	union {
 		kyou_register_t as_reg;
 		int64_t as_immediate;
-		void* as_mem;
+		AST_address as_mem;
 		int as_fd;
+		const char* as_label;
 	};
 }
 AST_source;
 
 typedef struct {
 	enum { DESTINATION_REGISTER, DESTINATION_MEM, DESTINATION_FD } type;
+	kyou_power_t power;
 	union
 	{
 		kyou_register_t as_reg;
-		void* as_mem;
+		AST_address as_mem;
 		int as_fd;
 	};
 }
 AST_destination;
-
-typedef struct {
-	enum { ADDRESS_LABEL, ADDRESS_IMMEDIATE, ADDRESS_REGISTER, ADDRESS_MEM } type;
-	union {
-		const char* as_label;
-		size_t as_immediate;
-		kyou_register_t as_reg;
-		void* as_mem;
-	};
-}
-AST_address;
 
 typedef struct
 {
@@ -59,7 +76,8 @@ typedef struct
 		};
 		struct {
 			kyou_register_t op_reg;
-			enum { OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD } op_type;
+			kyou_power_t op_power;
+			enum { OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_OR, OP_AND, OP_XOR } op_type;
 			AST_source op_src;
 		};
 		struct {
@@ -69,7 +87,7 @@ typedef struct
 			};
 		};
 		struct {
-			enum { BRANCH_ALWAYS, BRANCH_GREATER, BRANCH_LESS, BRANCH_EQUALS } branch_type;
+			enum { BRANCH_ALWAYS, BRANCH_GREATER, BRANCH_LESS, BRANCH_EQUALS, BRANCH_GREATER_OR_EQ, BRANCH_LESS_OR_EQ } branch_type;
 			AST_address branch_addr;
 			AST_source branch_a;
 			AST_source branch_b;
@@ -82,6 +100,9 @@ typedef struct
 		};
 		struct {
 			AST_address call_to;
+		};
+		struct {
+			AST_value value;
 		};
 	};
 }

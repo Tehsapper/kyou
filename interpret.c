@@ -15,11 +15,13 @@ const char* ast_names[] = {
 	"POP_STATEMENT",
 	"CALL_STATEMENT",
 	"RETURN_STATEMENT",
+	"STORE",
 	"TEMP_STR_PRINT"
 };
 
 int64_t regs[7] = { 0 };
 struct hash_table* labels;
+struct hash_table* strings;
 
 #define reg_stack_ptr regs[REG_STORAGE]
 #define reg_base_stack_ptr regs[REG_STORAGE_BASE]
@@ -27,38 +29,106 @@ struct hash_table* labels;
 #define STACK_PUSH(type, value) do { *((type*)(regs[REG_STORAGE])) = (value); regs[REG_STORAGE] += sizeof(type); } while (0)
 #define STACK_POP(type, var) do { regs[REG_STORAGE] -= sizeof(type); var = *((type*)(regs[REG_STORAGE])); } while (0)
 
+static int evaluate_address(AST_address* addr, void** value)
+{
+	switch (addr->type) {
+		case ADDRESS_REGISTER:
+			*value = &regs[addr->as_reg];
+			return 1;
+		case ADDRESS_LABEL:
+			*value = hash_get(labels, addr->as_label);
+			//fprintf(stderr, "address points to %p node\n", j);
+			if (*value == NULL) {
+				fprintf(stderr, "error: no such label %s\n", addr->as_label);
+				return 0;
+			} else {
+				*value += sizeof(AST_node);
+			}
+			return 1;
+		case ADDRESS_IMMEDIATE:
+			*value = (void*)addr->as_immediate;
+			return 1;
+		default:
+			fprintf(stderr, "error: unknown address type %d\n", addr->type);
+			return 0;
+	}
+}
+
+static int evaluate_source(AST_source* src, int64_t* value)
+{
+	switch (src->type) {
+		case SOURCE_REGISTER:
+			*value = regs[src->as_reg];
+			return 1;
+		case SOURCE_IMMEDIATE:
+			*value = src->as_immediate;
+			return 1;
+		case SOURCE_MEM:
+			if (!evaluate_address(&src->as_mem, (void**)&value))
+				return 0;
+			*value = *((int64_t*)(*value));
+			return 1;
+		case SOURCE_LABEL:
+			*value = (int64_t)hash_get(labels, src->as_label);
+			if (*((int64_t*)value) == 0) {
+				fprintf(stderr, "error: no such label %s\n", src->as_label);
+				return 0;
+			}
+			return 1;
+		default:
+			fprintf(stderr, "error: source type %d is not implemented\n", src->type);
+			return 0;
+	}
+}
+
+static int evaluate_destination(AST_destination* dest, int64_t value, kyou_power_t power)
+{
+	if (power <= POWER_WINTER && dest->power <= POWER_WINTER && power > dest->power) {
+		fprintf(stderr, "error: source has bigger power than destination\n");
+		return 0;
+	}
+
+	switch (dest->type) {
+		case DESTINATION_REGISTER:
+			if (dest->as_reg > 7) {
+				fprintf(stderr, "error: bad register id %d\n", dest->as_reg);
+				return 0;
+			}
+
+			regs[dest->as_reg] = value;
+			return 1;
+		case DESTINATION_FD: 
+			if (dest->as_fd == 1) {
+				if (power <= POWER_WINTER) printf("%lld\n", value);
+				if (power == POWER_STRING) printf("%s\n", (const char*)value);
+				if (power == POWER_CHAR) printf("%c\n", (char)value);
+				return 1;
+			} else {
+				fprintf(stderr, "error: destination fd %d is not implemented\n", dest->as_fd);
+				return 0;
+			}
+		case DESTINATION_MEM: {
+			int64_t* addr;
+			if (!evaluate_address(&dest->as_mem, (void**)&addr))
+				return 0;
+			*addr = value;
+			}
+			return 1;
+		default:
+			fprintf(stderr, "error: unknown destination type %d\n", dest->type);
+			return 0;
+	}
+}
+
 static int interpret_move(AST_node* node)
 {
 	int64_t value;
 
-	switch (node->move_src.type) {
-		case SOURCE_REGISTER:
-			value = regs[node->move_src.as_reg];
-			break;
-		case SOURCE_IMMEDIATE:
-			value = node->move_src.as_immediate;
-			break;
-		default:
-			fprintf(stderr, "error: source type %d is not implemented\n", node->move_src.type);
-			return 0;
-	}
+	if (!evaluate_source(&node->move_src, &value))
+		return 0;
 
-	switch (node->move_dest.type) {
-		case DESTINATION_REGISTER:
-			regs[node->move_dest.as_reg] = value;
-			break;
-		case DESTINATION_FD: 
-			if (node->move_dest.as_fd == 1) {
-				printf("%lld\n", value);
-				break;
-			} else {
-				fprintf(stderr, "error: destination fd %d is not implemented\n", node->move_dest.as_fd);
-				return 0;
-			}
-		default:
-			fprintf(stderr, "error: unknown destination type %d\n", node->move_dest.type);
-			return 0;
-	}
+	if (!evaluate_destination(&node->move_dest, value, node->move_src.power))
+		return 0;
 
 	return 1;
 }
@@ -67,18 +137,9 @@ static int interpret_op(AST_node* node)
 {
 	int64_t* reg = &regs[node->op_reg];
 	int64_t value;
-				
-	switch (node->op_src.type) {
-		case SOURCE_REGISTER:
-			value = regs[node->op_src.as_reg];
-			break;
-		case SOURCE_IMMEDIATE:
-			value = node->op_src.as_immediate;
-			break;
-		default:
-			fprintf(stderr, "error: source type %d is not implemented\n", node->op_src.type);
-			return 0;
-	}
+
+	if (!evaluate_source(&node->op_src, &value))
+		return 0;
 
 	switch (node->op_type) {
 		case OP_ADD: *reg += value; break;
@@ -100,7 +161,41 @@ static int interpret_branch(AST_node* node, AST_node** i)
 	int64_t a;
 	int64_t b;
 
-	switch (node->branch_addr.type) {
+	if (!evaluate_address(&node->branch_addr, (void**)&j))
+		return 0;
+
+	if (node->branch_addr.type == ADDRESS_LABEL)
+		j -= 1; // the loop will advance the node, TODO: maybe continue; if branch is successful?
+
+	if (node->branch_type == BRANCH_ALWAYS) {
+		*i = j;
+	} else {
+		if (!evaluate_source(&node->branch_a, &a) || !(evaluate_source(&node->branch_b, &b)))
+			return 0;
+
+		switch (node->branch_type) {
+			case BRANCH_EQUALS:
+				if (a == b) *i = j;
+				break;
+			case BRANCH_GREATER:
+				if (a > b) *i = j;
+				break;
+			case BRANCH_GREATER_OR_EQ:
+				if (a >= b) *i = j;
+				break;
+			case BRANCH_LESS:
+				if (a < b) *i = j;
+				break;
+			case BRANCH_LESS_OR_EQ:
+				if (a <= b) *i = j;
+				break;
+			default:
+				fprintf(stderr, "unknown branch type %d\n", node->branch_type);
+				return 0;
+		}
+	}
+
+	/*switch (node->branch_addr.type) {
 		case ADDRESS_LABEL:
 			j = (AST_node*)hash_get(labels, node->branch_addr.as_label);
 			//fprintf(stderr, "address points to %p node\n", j);
@@ -121,9 +216,9 @@ static int interpret_branch(AST_node* node, AST_node** i)
 		default:
 			fprintf(stderr, "unknown address type %d\n", node->branch_addr.type);
 			break;
-	}
+	}*/
 
-	switch (node->branch_type) {
+	/*switch (node->branch_type) {
 		case BRANCH_ALWAYS:
 			*i = j;
 			break;
@@ -156,25 +251,15 @@ static int interpret_branch(AST_node* node, AST_node** i)
 				*i = j;
 			}
 			break;
-	}
+	}*/
 	return 1;
 }
 
 int interpret_push(AST_node* node)
 {
 	int64_t value;
-
-	switch (node->push_from.type) {
-		case SOURCE_REGISTER:
-			value = regs[node->push_from.as_reg];
-			break;
-		case SOURCE_IMMEDIATE:
-			value = node->push_from.as_immediate;
-			break;
-		default:
-			fprintf(stderr, "error: source type %d is not implemented\n", node->push_from.type);
-			return 0;
-	}
+	if (!evaluate_source(&node->push_from, &value))
+		return 0;
 
 	STACK_PUSH(int64_t, value);
 
@@ -187,22 +272,8 @@ int interpret_pop(AST_node* node)
 
 	STACK_POP(int64_t, value);
 
-	switch (node->pop_to.type) {
-		case DESTINATION_REGISTER:
-			regs[node->pop_to.as_reg] = value;
-			break;
-		case DESTINATION_FD: 
-			if (node->pop_to.as_fd == 1) {
-				printf("%lld\n", value);
-				break;
-			} else {
-				fprintf(stderr, "error: destination fd %d is not implemented\n", node->pop_to.as_fd);
-				return 0;
-			}
-		default:
-			fprintf(stderr, "error: unknown destination type %d\n", node->pop_to.type);
-			return 0;
-	}
+	if (!evaluate_destination(&node->pop_to, value, node->pop_to.power))
+		return 0;
 
 	return 1;
 }
@@ -211,28 +282,11 @@ int interpret_call(AST_node* node, AST_node** i)
 {
 	AST_node* j;
 
-	switch (node->call_to.type) {
-		case ADDRESS_LABEL:
-			j = (AST_node*)hash_get(labels, node->call_to.as_label);
-			//fprintf(stderr, "address points to %p node\n", j);
-			if (j == NULL) {
-				fprintf(stderr, "error: no such label %s\n", node->call_to.as_label);
-				return 0;
-			}
-			break;
-		case ADDRESS_REGISTER:
-			j = (AST_node*)regs[node->call_to.as_reg];
-			break;
-		case ADDRESS_IMMEDIATE:
-			j = (AST_node*)node->call_to.as_immediate;
-			break;
-		case ADDRESS_MEM:
-			fprintf(stderr, "memory branching is not implemented\n");
-			return 0;
-		default:
-			fprintf(stderr, "unknown address type %d\n", node->call_to.type);
-			break;
-	}
+	if (!evaluate_address(&node->call_to, (void**)&j))
+		return 0;
+
+	if (node->call_to.type == ADDRESS_LABEL)
+		--j;
 
 	STACK_PUSH(AST_node*, node);
 	*i = j;

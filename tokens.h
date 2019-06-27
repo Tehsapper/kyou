@@ -20,6 +20,8 @@
 #define KANJI_SUMMER       u8"夏"
 #define KANJI_AUTUMN       u8"秋"
 #define KANJI_WINTER       u8"冬"
+#define KANJI_STRING       u8"文"
+#define KANJI_CHAR         u8"字"
 
 #define KANJI_MOVE         u8"動"
 #define KANJI_PUSH         u8"押"
@@ -32,6 +34,9 @@
 #define KANJI_MULTIPLY     u8"掛"
 #define KANJI_DIVIDE       u8"割"
 #define KANJI_MODULO       u8"余"
+#define KANJI_OR           u8"或"
+#define KANJI_AND          u8"共"
+#define KANJI_XOR          u8"排"
 
 #define KANJI_ZERO         u8"霊"
 #define KANJI_ONE          u8"一"
@@ -49,7 +54,13 @@
 #define KANJI_TEN_THOUSAND u8"万"
 
 #define KANJI_LABEL        u8"札"
+#define KANJI_SECTION      u8"句"
+#define KANJI_EXPORT       u8"輸出"
+#define KANJI_IMPORT       u8"輸入"
+#define KANJI_STORE        u8"資"
+#define KANJI_TIMES        u8"度"
 #define KANJI_BRANCH       u8"別"
+#define KANJI_ALWAYS       u8"常"
 #define KANJI_EQUALS       u8"等"
 #define KANJI_GREATER      u8"大"
 #define KANJI_LESS         u8"小"
@@ -80,6 +91,9 @@ typedef enum {
 	TOKEN_AUTUMN,
 	TOKEN_WINTER,
 
+	TOKEN_STRING_TYPE, // not to be confused with spring and string
+	TOKEN_CHAR,
+
 	// operations
 	TOKEN_MOVE,
 	TOKEN_PUSH,
@@ -92,12 +106,16 @@ typedef enum {
 	TOKEN_MUL,
 	TOKEN_DIV,
 	TOKEN_MOD,
+	TOKEN_OR,
+	TOKEN_AND,
+	TOKEN_XOR,
 
 	TOKEN_IDENTIFIER,
 	TOKEN_NUMBER,
 	TOKEN_STRING,
 	TOKEN_LABEL,
 	TOKEN_BRANCH,
+	TOKEN_ALWAYS,
 	TOKEN_EQUALS,
 	TOKEN_LESS,
 	TOKEN_GREATER,

@@ -7,16 +7,16 @@
 	木余五
 	別札buzz木大霊
 	「fizzbuzz」動日
-	別札continue
+	別札continue常
 札buzz
 	「buzz」動日
-	別札continue
+	別札continue常
 札div5
 	火動木
 	木余五
 	別札num木大霊
 	「fizz」動日
-	別札continue
+	別札continue常
 札num
 	火動日
 札continue
