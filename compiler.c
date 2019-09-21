@@ -62,8 +62,6 @@ static void emit_move_imm2r(uint8_t reg, uint64_t imm)
 	uint8_t rex = 0x48 | (reg & 0x8 ? 0x1 : 0);
 	uint8_t opcode = 0xB8 + (reg & 0x7);
 
-	fprintf(stderr, "movabs %hhx %hhx\n", rex, opcode);
-
 	EMIT(rex);
 	EMIT(opcode);
 	EMIT(imm);
@@ -87,27 +85,10 @@ static int compile_move(AST_node* node)
 {
 	if (node->move_dest.type == DESTINATION_REGISTER && node->move_src.type == SOURCE_REGISTER) {
 		emit_move_r2r(kyou_reg2x64id(node->move_dest.as_reg), kyou_reg2x64id(node->move_src.as_reg));
-		/*uint8_t rex = 0x40;
-		uint8_t opcode = 0x89;
-
-		// extended registers
-		if (node->move_dest.as_reg != REG_FIRE)
-			rex |= 0x8;
-		if (node->move_src.as_reg != REG_FIRE)
-			rex |= 0x4;
-
-		// 11
-		uint8_t modRM = 0xC0;
-		modRM |= kyou_reg2x64id(node->move_dest.as_reg << 3);
-		modRM |= kyou_reg2x64id(node->mode_src.as_reg);
-
-		EMIT(rex);
-		EMIT(opcode);
-		EMIT(modRM);*/
 		return 1;
 	}
 	else if (node->move_dest.type == DESTINATION_REGISTER && node->move_src.type == SOURCE_IMMEDIATE) {
-		emit_move_imm2r(kyou_reg2x64id(node->move_dest.as_reg),node->move_src.as_immediate);
+		emit_move_imm2r(kyou_reg2x64id(node->move_dest.as_reg), node->move_src.as_immediate);
 		return 1;
 	}
 	else if (node->move_dest.type == DESTINATION_FD && node->move_src.type == SOURCE_REGISTER) {
@@ -260,7 +241,9 @@ int compile(AST* ast, const char* filename)
 		fwrite(&header, sizeof(elf_header), 1, file);
 		fwrite(&text_header, sizeof(elf_program_header), 1, file);
 		fwrite(data, 1, size, file);
-	} else return -1;
+	} else {
+		return -1;
+	}
 
 	fclose(file);
 

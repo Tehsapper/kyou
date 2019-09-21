@@ -59,6 +59,7 @@
 #define KANJI_IMPORT       u8"輸入"
 #define KANJI_STORE        u8"資"
 #define KANJI_TIMES        u8"度"
+#define KANJI_EMIT         u8"発"
 #define KANJI_BRANCH       u8"別"
 #define KANJI_ALWAYS       u8"常"
 #define KANJI_EQUALS       u8"等"

@@ -195,69 +195,13 @@ static int interpret_branch(AST_node* node, AST_node** i)
 		}
 	}
 
-	/*switch (node->branch_addr.type) {
-		case ADDRESS_LABEL:
-			j = (AST_node*)hash_get(labels, node->branch_addr.as_label);
-			//fprintf(stderr, "address points to %p node\n", j);
-			if (j == NULL) {
-				fprintf(stderr, "error: no such label %s\n", node->branch_addr.as_label);
-				return 0;
-			}
-			break;
-		case ADDRESS_REGISTER:
-			j = (AST_node*)regs[node->branch_addr.as_reg];
-			break;
-		case ADDRESS_IMMEDIATE:
-			j = (AST_node*)node->branch_addr.as_immediate;
-			break;
-		case ADDRESS_MEM:
-			fprintf(stderr, "memory branching is not implemented\n");
-			return 0;
-		default:
-			fprintf(stderr, "unknown address type %d\n", node->branch_addr.type);
-			break;
-	}*/
-
-	/*switch (node->branch_type) {
-		case BRANCH_ALWAYS:
-			*i = j;
-			break;
-		default:
-			switch (node->branch_a.type) {
-				case SOURCE_REGISTER:
-					a = regs[node->branch_a.as_reg];
-					break;
-				case SOURCE_IMMEDIATE:
-					a = node->branch_a.as_immediate;
-					break;
-				default:
-					fprintf(stderr, "error: source type %d is not implemented\n", node->branch_a.type);
-					return 0;
-			}
-
-			switch (node->branch_b.type) {
-				case SOURCE_REGISTER:
-					b = regs[node->branch_b.as_reg];
-					break;
-				case SOURCE_IMMEDIATE:
-					b = node->branch_b.as_immediate;
-					break;
-				default:
-					fprintf(stderr, "error: source type %d is not implemented\n", node->branch_b.type);
-					return 0;
-			}
-
-			if ((node->branch_type == BRANCH_EQUALS && a == b) || (node->branch_type == BRANCH_GREATER && a > b) || (node->branch_type == BRANCH_LESS && a < b)) {
-				*i = j;
-			}
-			break;
-	}*/
 	return 1;
 }
 
 int interpret_push(AST_node* node)
 {
 	int64_t value;
+
 	if (!evaluate_source(&node->push_from, &value))
 		return 0;
 
@@ -290,6 +234,7 @@ int interpret_call(AST_node* node, AST_node** i)
 
 	STACK_PUSH(AST_node*, node);
 	*i = j;
+
 	return 1;
 }
 
@@ -301,14 +246,13 @@ int interpret_return(AST_node* node, AST_node** i)
 
 int interpret_ast(AST ast)
 {
-	//int64_t fire = 0, water = 0, tree = 0, metal = 0, earth = 0;
 	labels = hash_create(djb2, string_equals, 16);
 
 	for (size_t i = 0; i < ast.size; ++i) {
-		fprintf(stderr, "%s\n", ast_names[ast.nodes[i].type]);
+		//fprintf(stderr, "%s\n", ast_names[ast.nodes[i].type]);
 		if (ast.nodes[i].type == LABEL) {
 			if (hash_get(labels, ast.nodes[i].id) == NULL) {
-				fprintf(stderr, "added label %s with ptr %p\n", ast.nodes[i].id, &ast.nodes[i]);
+				//fprintf(stderr, "added label %s with ptr %p\n", ast.nodes[i].id, &ast.nodes[i]);
 				hash_add(labels, ast.nodes[i].id, &ast.nodes[i]);
 			} else {
 				fprintf(stderr, "error: same label %s declared twice\n", ast.nodes[i].id);
@@ -318,8 +262,6 @@ int interpret_ast(AST ast)
 	}
 
 	int64_t *stack = malloc(sizeof(int64_t) * 32);
-	//*((int64_t**)(&regs[REG_STORAGE])) = stack;
-	//*((int64_t**)(&regs[REG_STORAGE_BASE])) = stack;
 	regs[REG_STORAGE] = (int64_t)stack;
 	regs[REG_STORAGE_BASE] = (int64_t)stack;
 

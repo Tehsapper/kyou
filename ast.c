@@ -78,10 +78,13 @@ const char* token_str[] = {
 
 token *t, *st;
 
-typedef enum { RULE_ACCEPT, RULE_PASS, RULE_ERROR } rule_result_t;
+typedef enum { RULE_PASS, RULE_ACCEPT, RULE_ERROR } rule_result_t;
 
+#define ACCEPT do { t = st; return RULE_ACCEPT; } while (0)
+#define PASS do { return RULE_PASS; } while(0)
 #define NEXT_TOKEN *st++
-#define ROLLBACK_TOKEN do { st = t; return 0; } while (0)
+#define ROLLBACK_ONCE do { --st; } while (0)
+#define ROLLBACK_TOKEN do { st = t; PASS; } while (0)
 #define EXPECTED(new_token, predicate) token new_token = NEXT_TOKEN;\
 if (! (predicate) ) {\
 	fprintf(stderr, "predicate " #predicate " failed for %s\n", token_str[new_token.type]);\
@@ -97,10 +100,8 @@ if ( ! (first_predicate) ) {\
 #define MAYBE_TOKEN(new_token, predicate) token new_token = NEXT_TOKEN; if (! (predicate) ) { ROLLBACK_TOKEN; }
 #define OPTIONAL(new_token, predicate) token new_token = NEXT_TOKEN; if (! (predicate)) { --st; new_token.type = TOKEN_NONE; }
 #define OPTIONAL_IF(new_token, first_predicate, token_predicate) token new_token = NEXT_TOKEN; if (token_predicate) {\
-		if (!(first_predicate)) { fprintf(stderr, "optional token encountered while 1st predicate was failed\n"); return 2; }\
+		if (!(first_predicate)) { fprintf(stderr, "optional token encountered while 1st predicate failed\n"); return RULE_ERROR; }\
 	} else { --st; new_token.type = TOKEN_NONE; }
-
-#define ACCEPT do { t = st; return 1; } while (0)
 
 static int add_ast_node(AST* ast, AST_node node)
 {
@@ -124,7 +125,7 @@ static int register_from_token(kyou_register_t* dest)
 		case TOKEN_METAL: *dest = REG_METAL; return 1;
 		case TOKEN_STORAGE: *dest = REG_STORAGE; return 1;
 		case TOKEN_STORAGE_BASE: *dest = REG_STORAGE_BASE; return 1;
-		default: --st; return 0;
+		default: ROLLBACK_ONCE; return 0;
 	}
 }
 
@@ -137,7 +138,7 @@ static int immediate_from_token(int64_t* dest)
 		return 1;
 	}
 	else {
-		--st;
+		ROLLBACK_ONCE;
 		return 0;
 	}
 }
@@ -145,15 +146,14 @@ static int immediate_from_token(int64_t* dest)
 static int label_from_token(const char** name)
 {
 	token label_tok = NEXT_TOKEN;
-
 	if (label_tok.type != TOKEN_LABEL) {
-		--st;
+		ROLLBACK_ONCE;
 		return 0;
 	}
 
 	token id_tok = NEXT_TOKEN;
 	if (id_tok.type != TOKEN_IDENTIFIER)  {
-		--st;
+		ROLLBACK_ONCE;
 		return 0;
 	}
 
@@ -182,13 +182,11 @@ static int address_from_token(AST_address* dest)
 static int mem_from_token(AST_address* dest)
 {
 	token star_tok = NEXT_TOKEN;
-
 	if (star_tok.type != TOKEN_STARS) {
-		--st;
+		ROLLBACK_ONCE;
 		return 0;
 	}
 
-	//token addr_tok = NEXT_TOKEN;
 	return address_from_token(dest);
 }
 
@@ -197,7 +195,7 @@ static int fd_from_token(int* fd)
 	token fd_tok = NEXT_TOKEN;
 
 	if (fd_tok.type != TOKEN_SUN) {
-		--st;
+		ROLLBACK_ONCE;
 		return 0;
 	}
 
@@ -241,7 +239,7 @@ static int source_from_token(AST_source* src)
 	if (IS_POWER(power_tok.type)) {
 		power_from_token(&src->power, power_tok.type);
 	} else {
-		--st;
+		ROLLBACK_ONCE;
 		src->power = POWER_WINTER;
 	}
 
@@ -265,7 +263,7 @@ static int destination_from_token(AST_destination* dest)
 	if (IS_POWER(power_tok.type)) {
 		power_from_token(&dest->power, power_tok.type);
 	} else {
-		--st;
+		ROLLBACK_ONCE;
 		dest->power = POWER_WINTER;
 	}
 
@@ -282,14 +280,14 @@ int arithm_op_rule(AST* ast)
 	AST_node node;
 
 	if (!register_from_token(&node.op_reg)) {
-		return 0;
+		return RULE_PASS;
 	}
 
 	token power_tok = NEXT_TOKEN;
 	if (IS_POWER(power_tok.type)) {
 		power_from_token(&node.op_power, power_tok.type);
 	} else {
-		--st;
+		ROLLBACK_ONCE;
 		node.op_power = POWER_WINTER;
 	}
 
@@ -304,20 +302,13 @@ int arithm_op_rule(AST* ast)
 		case TOKEN_MOD: node.op_type = OP_MOD; break;
 		default: {
 			fprintf(stderr, "unimplemented operator token %s\n", token_str[op_tok.type]);
-			return 2;
+			return RULE_ERROR;
 		}
 	}
 
-	// arithmetic operation statement
-	//MAYBE_TOKEN(reg_tok, IS_REGISTER(reg_tok.type))
-	//OPTIONAL(reg_power_tok, IS_POWER(reg_power_tok.type))
-	//MAYBE_TOKEN(op_tok, IS_OP(op_tok.type))
-	//EXPECTED(src_tok, IS_SOURCE(src_tok.type))
-	//OPTIONAL(src_power_tok, IS_POWER(src_power_tok.type))
-
 	if (!source_from_token(&node.op_src)) {
 		fprintf(stderr, "failed at unknown source %s\n", token_str[st->type]);
-		return 2;
+		return RULE_ERROR;
 	}
 	add_ast_node(ast, node);
 	ACCEPT;
@@ -328,31 +319,16 @@ int move_rule(AST* ast)
 	AST_node node;
 
 	if (!source_from_token(&node.move_src))
-		return 0;
+		return RULE_PASS;
 
 	MAYBE_TOKEN(move_tok, move_tok.type == TOKEN_MOVE)
 	node.type = MOVE_STATEMENT;
 
 	if (!destination_from_token(&node.move_dest))
-		return 2;
+		return RULE_ERROR;
 
 	add_ast_node(ast, node);
 	ACCEPT;
-	/*MAYBE_TOKEN(source_tok, IS_SOURCE(source_tok.type))
-	OPTIONAL(source_power_tok, IS_POWER(source_power_tok.type))
-	MAYBE_TOKEN(move_tok, move_tok.type == TOKEN_MOVE)
-	EXPECTED(dest_tok, IS_DESTINATION(dest_tok.type))
-	OPTIONAL(dest_power_tok, IS_POWER(dest_power_tok.type))
-
-	AST_node node;
-	node.type = MOVE_STATEMENT;
-	if (!source_from_token(&node.move_src, source_tok))
-		return 2;
-	if (!destination_from_token(&node.move_dest, dest_tok))
-		return 2;
-
-	add_ast_node(ast, node);
-	ACCEPT;*/
 }
 
 int label_rule(AST* ast)
@@ -360,19 +336,17 @@ int label_rule(AST* ast)
 	MAYBE_TOKEN(label_tok, label_tok.type == TOKEN_LABEL)
 	EXPECTED(id_tok, id_tok.type == TOKEN_IDENTIFIER)
 
-	AST_node node;
-	node.type = LABEL;
-	node.id = id_tok.as_cstr;
-	add_ast_node(ast, node);
+	add_ast_node(ast, (AST_node){ .type = LABEL, .id = id_tok.as_cstr });
 	ACCEPT;
 }
 
 int branch_rule(AST* ast)
 {
 	AST_node node;
+
 	MAYBE_TOKEN(branch_tok, branch_tok.type == TOKEN_BRANCH)
 	if (!address_from_token(&node.branch_addr))
-		return 2;
+		return RULE_ERROR;
 
 	node.type = BRANCH_STATEMENT;
 
@@ -380,55 +354,22 @@ int branch_rule(AST* ast)
 	if (always_tok.type == TOKEN_ALWAYS) {
 		// unconditional jump
 		node.branch_type = BRANCH_ALWAYS;
-	} 
-	else {
-		--st;
+	} else {
 		// conditional jump
+		ROLLBACK_ONCE;
+		
 		if (!source_from_token(&node.branch_a))
-			return 2;
+			return RULE_ERROR;
 
 		EXPECTED(type_tok, IS_BRANCH_TYPE(type_tok.type))
 		node.branch_type = (type_tok.type == TOKEN_EQUALS ? BRANCH_EQUALS : (type_tok.type == TOKEN_GREATER ? BRANCH_GREATER : BRANCH_LESS ));
 
 		if (!source_from_token(&node.branch_b))
-			return 2;
+			return RULE_ERROR;
 	}
 
 	add_ast_node(ast, node);
 	ACCEPT;
-	/*MAYBE_TOKEN(branch_tok, branch_tok.type == TOKEN_BRANCH)
-	EXPECTED(addr_tok, IS_ADDRESS(addr_tok.type))
-	EXPECTED_IF(id_tok, addr_tok.type == TOKEN_LABEL, id_tok.type == TOKEN_IDENTIFIER)
-	OPTIONAL(a_tok, IS_SOURCE(a_tok.type))
-	OPTIONAL_IF(a_power_tok, a_tok.type != TOKEN_NONE, IS_POWER(a_power_tok.type))
-
-	if (a_tok.type != TOKEN_NONE) {
-		EXPECTED(type_tok, IS_BRANCH_TYPE(type_tok.type))
-		EXPECTED(b_tok, IS_SOURCE(b_tok.type))
-
-		AST_node node;
-		node.type = BRANCH_STATEMENT;
-		node.branch_type = (type_tok.type == TOKEN_EQUALS ? BRANCH_EQUALS : (type_tok.type == TOKEN_GREATER ? BRANCH_GREATER : BRANCH_LESS ));
-		if (!address_from_token(&node.branch_addr, addr_tok, id_tok))
-			return 2;
-
-		if (!source_from_token(&node.branch_a, a_tok))
-			return 2;
-		if (!source_from_token(&node.branch_b, b_tok))
-			return 2;
-
-		add_ast_node(ast, node);
-		ACCEPT;
-	} else {
-		// absolute branch
-		AST_node node;
-		node.type = BRANCH_STATEMENT;
-		node.branch_type = BRANCH_ALWAYS;
-		if (!address_from_token(&node.branch_addr, addr_tok, id_tok))
-			return 2;
-		add_ast_node(ast, node);
-		ACCEPT;
-	}*/
 }
 
 int push_rule(AST* ast)
@@ -437,7 +378,7 @@ int push_rule(AST* ast)
 	
 	MAYBE_TOKEN(push_tok, push_tok.type == TOKEN_PUSH)
 	if (!source_from_token(&node.push_from))
-		return 2;
+		return RULE_ERROR;
 
 	node.type = PUSH_STATEMENT;
 	
@@ -451,7 +392,7 @@ int pop_rule(AST* ast)
 
 	MAYBE_TOKEN(pop_tok, pop_tok.type == TOKEN_POP)
 	if (!destination_from_token(&node.pop_to))
-		return 2;
+		return RULE_ERROR;
 
 	node.type = POP_STATEMENT;
 	
@@ -465,7 +406,7 @@ int call_rule(AST* ast)
 
 	MAYBE_TOKEN(call_tok, call_tok.type == TOKEN_CALL)
 	if (!address_from_token(&node.call_to))
-		return 2;
+		return RULE_ERROR;
 
 	node.type = CALL_STATEMENT;
 	
@@ -476,7 +417,6 @@ int call_rule(AST* ast)
 int return_rule(AST* ast)
 {
 	MAYBE_TOKEN(return_tok, return_tok.type == TOKEN_RETURN)
-
 	add_ast_node(ast, (AST_node) { .type = RETURN_STATEMENT });
 	ACCEPT;
 }
@@ -496,10 +436,14 @@ int temp_str_print(AST* ast)
 }
 
 #undef ACCEPT
+#undef PASS
+#undef OPTIONAL_IF
 #undef OPTIONAL
 #undef MAYBE_TOKEN
-#undef EXPECT
+#undef EXPECTED_IF
+#undef EXPECTED
 #undef ROLLBACK_TOKEN
+#undef ROLLBACK_ONCE
 #undef NEXT_TOKEN
 
 ast_result_t build_ast(AST* ast, unsigned char* data, size_t data_size)
@@ -523,8 +467,7 @@ ast_result_t build_ast(AST* ast, unsigned char* data, size_t data_size)
 		if (st->type == TOKEN_EOF)
 			break;
 		int rule_result;
-#define CHECK_RULE(func) rule_result = func(ast); if (rule_result == 1) continue; if (rule_result == 2) goto error;
-
+#define CHECK_RULE(func) rule_result = func(ast); if (rule_result == RULE_ACCEPT) continue; if (rule_result == RULE_ERROR) goto error;
 		CHECK_RULE(arithm_op_rule)
 		CHECK_RULE(move_rule)
 		CHECK_RULE(label_rule)
@@ -534,7 +477,7 @@ ast_result_t build_ast(AST* ast, unsigned char* data, size_t data_size)
 		CHECK_RULE(call_rule)
 		CHECK_RULE(return_rule)
 		CHECK_RULE(temp_str_print)
-
+#undef CHECK_RULE
 error:
 		fprintf(stderr, "syntax error at line %u, %u\n", t->line, t->col);
 		return AST_ERROR;

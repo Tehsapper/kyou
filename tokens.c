@@ -18,7 +18,6 @@ static int add_token(tokens* toks, token t)
 
 tokenize_result_t tokenize(tokens* toks, const char* data, size_t data_size)
 {
-	//tokens* toks = malloc(sizeof(tokens));
 	toks->data = NULL;
 	toks->size = 0;
 

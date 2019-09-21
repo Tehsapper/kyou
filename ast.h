@@ -28,8 +28,7 @@ typedef struct {
 		const char* as_string;
 		char as_char;
 	};
-}
-AST_value;
+} AST_value;
 
 typedef struct {
 	enum { ADDRESS_LABEL, ADDRESS_IMMEDIATE, ADDRESS_REGISTER } type;
@@ -38,8 +37,7 @@ typedef struct {
 		size_t as_immediate;
 		kyou_register_t as_reg;
 	};
-}
-AST_address;
+} AST_address;
 
 typedef struct {
 	enum { SOURCE_REGISTER, SOURCE_IMMEDIATE, SOURCE_MEM, SOURCE_FD, SOURCE_LABEL } type;
@@ -51,8 +49,7 @@ typedef struct {
 		int as_fd;
 		const char* as_label;
 	};
-}
-AST_source;
+} AST_source;
 
 typedef struct {
 	enum { DESTINATION_REGISTER, DESTINATION_MEM, DESTINATION_FD } type;
@@ -63,8 +60,7 @@ typedef struct {
 		AST_address as_mem;
 		int as_fd;
 	};
-}
-AST_destination;
+} AST_destination;
 
 typedef struct
 {
@@ -105,15 +101,13 @@ typedef struct
 			AST_value value;
 		};
 	};
-}
-AST_node;
+} AST_node;
 
 typedef struct
 {
 	AST_node* nodes;
 	size_t size;
-}
-AST;
+} AST;
 
 typedef enum { AST_SUCCESS, AST_ERROR } ast_result_t;
 

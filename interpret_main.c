@@ -20,8 +20,6 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
-	//printf("%.*s", data_size, data);
-
 	AST ast;
 	if (build_ast(&ast, data, data_size) != AST_SUCCESS) {
 		return EXIT_FAILURE;
